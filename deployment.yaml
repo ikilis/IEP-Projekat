@@ -1,0 +1,161 @@
+version : '3'
+
+services:
+  adminer:
+    image: adminer
+    ports:
+      - 8080:8080
+    networks:
+      - adminerAuthNetwork
+      - adminerStoreNetwork
+
+  redis:
+    image: redis
+    ports:
+      - 6379:6379
+    networks:
+      - redisDeamonNetwork
+      - redisStorekeperNetwork
+
+  # auth deo
+
+  authenticationDB:
+    image: mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+    ports:
+      - 3306:3306
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"] # we ping the database to check is it initialized
+      timeout: 10s
+      retries: 20
+    networks:
+      - authenticationNetwork
+      - adminerAuthNetwork
+    volumes:
+      - authenticationVolume:/var/lib/mysql
+
+  authenticationDBMigration:
+    image: authenticationdbmigration_projekat
+    environment:
+      - DATABASE_URL=authenticationDB
+    depends_on:
+      authenticationDB:
+        condition: service_healthy
+    networks:
+      - authenticationNetwork
+
+  authentication:
+    image: authentication_projekat
+    environment:
+      - DATABASE_URL=authenticationDB
+    depends_on:
+      - authenticationDBMigration
+    ports:
+      - 5002:5002
+    networks:
+      - authenticationNetwork
+
+  # prodavnica deo
+
+  shopDB:
+    image: mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+    ports:
+      - 3307:3306
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ] # we ping the database to check is it initialized
+      timeout: 10s
+      retries: 20
+    networks:
+      - adminNetwork
+      - buyerNetwork
+      - deamonNetwork
+      - adminerStoreNetwork
+
+  shopDBMigration:
+    image: shopdbmigration
+    environment:
+      - DATABASE_URL=shopDB
+      - REDIS_PORT=redis
+    depends_on:
+      shopDB:
+        condition: service_healthy
+    networks:
+      - adminNetwork
+      - buyerNetwork
+      - deamonNetwork
+
+  buyer:
+    image: buyer
+    environment:
+      - DATABASE_URL=shopDB
+      - REDIS_PORT=redis
+    ports:
+      - 5004:5004
+    depends_on:
+      - shopDBMigration
+    networks:
+      - buyerNetwork
+
+  admin:
+    image: admin
+    environment:
+      - DATABASE_URL=shopDB
+      - REDIS_PORT=redis
+    ports:
+      - 5001:5001
+    depends_on:
+      - shopDBMigration
+    networks:
+      - adminNetwork
+
+  storekeper:
+    image: storekeper
+    environment:
+      - DATABASE_URL=shopDB
+      - REDIS_PORT=redis
+    ports:
+      - 5003:5003
+    networks:
+      - storekeperNetwork
+      - redisStorekeperNetwork
+
+  deamon:
+    image: deamon
+    environment:
+      - DATABASE_URL=shopDB
+      - REDIS_PORT=redis
+    depends_on:
+      - shopDBMigration
+    networks:
+      - deamonNetwork
+      - redisDeamonNetwork
+
+networks:
+  adminNetwork:
+
+  buyerNetwork:
+
+  storekeperNetwork:
+
+  deamonNetwork:
+
+  authenticationNetwork:
+
+  adminerAuthNetwork:
+
+  adminerStoreNetwork:
+
+  redisDeamonNetwork:
+
+  redisStorekeperNetwork:
+
+volumes:
+  authenticationVolume:
+
+  storeVolume:
+
+
+
